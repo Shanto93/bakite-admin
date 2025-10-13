@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 export default function LoginClient() {
-
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -13,17 +14,36 @@ export default function LoginClient() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const credentialData = { email, password };
+
+    if (!email || !password) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
     try {
       setLoading(true);
-      signIn("credentials", {
-        ...credentialData,
+
+      // Add redirect: false to handle the response manually
+      const result = await signIn("credentials", {
+        redirect: false,
+        email,
+        password,
         callbackUrl: "/dashboard",
       });
-      toast.success("User Logged In Successfully");
-      setLoading(false);
+
+      if (result?.error) {
+        // Handle authentication errors
+        toast.error("Invalid email or password");
+        setLoading(false);
+      } else if (result?.ok) {
+        // Success - redirect manually
+        toast.success("User Logged In Successfully");
+        router.push("/dashboard");
+      }
     } catch (err) {
-      console.log(err);
+      console.error(err);
+      toast.error("An error occurred during login");
+      setLoading(false);
     }
   };
 
