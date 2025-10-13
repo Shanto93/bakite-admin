@@ -2,20 +2,13 @@
 
 // export const config = { matcher: ["/dashboard"] }
 
-
-
-
-
-
-
-
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  
+
   // Get the token to check authentication
   const token = await getToken({
     req: request,
@@ -25,7 +18,7 @@ export async function middleware(request: NextRequest) {
   // Define public routes that don't need authentication
   const isLoginPage = pathname.startsWith("/login");
   const isAuthRoute = pathname.startsWith("/api/auth");
-  
+
   // Allow access to login and auth routes without authentication
   if (isLoginPage || isAuthRoute) {
     // If user is already authenticated and tries to access login, redirect to dashboard
@@ -36,7 +29,11 @@ export async function middleware(request: NextRequest) {
   }
 
   // Protect dashboard routes
-  if (pathname.startsWith("/dashboard")) {
+  if (
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/agent-monitor") ||
+    pathname.startsWith("/")
+  ) {
     // If no token, redirect to login
     if (!token) {
       const url = new URL("/login", request.url);
@@ -57,14 +54,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    "/","/dashboard",
-  ],
+  matcher: ["/", "/dashboard"],
 };
