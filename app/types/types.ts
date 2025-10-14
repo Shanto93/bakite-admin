@@ -6,7 +6,6 @@ export interface Executive {
   area: string;
 }
 
-
 export interface User {
   shopId: string;
   phone: string;
@@ -20,10 +19,17 @@ export interface User {
   lastConsumerAddedAt: string;
 }
 
-
 export interface IDropdownProps {
   label: string;
   options: string[];
   value: string;
   onChange: (value: string) => void;
+}
+
+export interface FormData {
+  name: string;
+  phone: string;
+  password: string;
+  area: string;
+  file: FileList;
 }

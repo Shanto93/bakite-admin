@@ -7,6 +7,7 @@ declare module "next-auth" {
       id: string;
       name?: string | null;
       email?: string | null;
+      role: "ADMIN" | "SUPER_ADMIN" | "MANAGEMENT";
       image?: string | null;
     };
   }
@@ -15,6 +16,7 @@ declare module "next-auth" {
     id: string;
     name?: string | null;
     email?: string | null;
+    role: "ADMIN" | "SUPER_ADMIN" | "MANAGEMENT";
     image?: string | null;
   }
 }
@@ -22,6 +24,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
+    role: "ADMIN" | "SUPER_ADMIN" | "MANAGEMENT";
   }
 }
 
@@ -40,10 +43,22 @@ export const authOptions: NextAuthOptions = {
           type: "password",
           placeholder: "********",
         },
+        role: {
+          label: "Role",
+          type: "string",
+          placeholder: "ADMIN",
+        },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials.password) {
-          console.log("Email or Password is missing");
+        if (!credentials?.email || !credentials.password || !credentials.role) {
+          console.log("Email, Password, or Role is missing");
+          return null;
+        }
+
+        // Validate the role is one of the allowed values
+        const validRoles = ["ADMIN", "SUPER_ADMIN", "MANAGEMENT"];
+        if (!validRoles.includes(credentials.role)) {
+          console.log("Invalid role provided");
           return null;
         }
 
@@ -55,6 +70,7 @@ export const authOptions: NextAuthOptions = {
             id: "1",
             name: "Admin User",
             email: credentials.email,
+            role: credentials.role as "ADMIN" | "SUPER_ADMIN" | "MANAGEMENT",
           };
         }
         return null;
@@ -64,20 +80,23 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async jwt({ token, user }) {
+      // On first sign in, user object is available
       if (user) {
         token.id = user.id;
+        token.role = user.role;
       }
       return token;
     },
 
     async session({ session, token }) {
+      // Pass token data to session
       if (session.user) {
         session.user.id = token.id;
+        session.user.role = token.role;
       }
       return session;
     },
 
-    // Add this redirect callback
     async redirect({ url, baseUrl }) {
       // Allows relative callback URLs
       if (url.startsWith("/")) return `${baseUrl}${url}`;

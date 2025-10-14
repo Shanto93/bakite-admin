@@ -9,13 +9,14 @@ export default function LoginClient() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!email || !password) {
+    if (!email || !password || !role) {
       toast.error("Please fill in all fields");
       return;
     }
@@ -23,20 +24,18 @@ export default function LoginClient() {
     try {
       setLoading(true);
 
-      // Add redirect: false to handle the response manually
       const result = await signIn("credentials", {
         redirect: false,
         email,
         password,
+        role,
         callbackUrl: "/dashboard",
       });
 
       if (result?.error) {
-        // Handle authentication errors
         toast.error("Invalid email or password");
         setLoading(false);
       } else if (result?.ok) {
-        // Success - redirect manually
         toast.success("User Logged In Successfully");
         router.push("/dashboard");
       }
@@ -144,6 +143,30 @@ export default function LoginClient() {
                     {showPw ? "Hide" : "Show"}
                   </button>
                 </div>
+              </div>
+
+              {/* Role */}
+              <div className="space-y-2">
+                <label
+                  htmlFor="role"
+                  className="text-sm font-medium text-neutral-700 dark:text-neutral-200"
+                >
+                  Role
+                </label>
+                <select
+                  id="role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  required
+                  className="block w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm outline-none ring-0 transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:border-neutral-700 dark:bg-neutral-900"
+                >
+                  <option value="" disabled>
+                    Select a role
+                  </option>
+                  <option value="ADMIN">Admin</option>
+                  <option value="SUPER_ADMIN">Super Admin</option>
+                  <option value="MANAGEMENT">Management</option>
+                </select>
               </div>
 
               {/* Actions */}

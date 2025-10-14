@@ -12,14 +12,7 @@ import {
   FiChevronDown,
 } from "react-icons/fi";
 import Image from "next/image";
-
-interface FormData {
-  name: string;
-  phone: string;
-  password: string;
-  area: string;
-  file: FileList;
-}
+import type { FormData } from "@/app/types/types";
 
 const Create = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -36,10 +29,7 @@ const Create = () => {
 
   const watchedFile = watch("file");
 
-  const areaOptions = [
-    "CTG Metro",
-    "East - West",
-  ];
+  const areaOptions = ["CTG Metro", "East - West"];
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     setIsLoading(true);
@@ -283,7 +273,7 @@ const Create = () => {
                   {errors.area.message}
                 </p>
               )}
-            </div>
+            </div>            
 
             {/* File Upload Field */}
             <div>
