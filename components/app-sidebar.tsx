@@ -5,11 +5,13 @@ import {
   IconCamera,
   IconDashboard,
   IconFileAi,
-  IconFileDescription,
-  IconInnerShadowTop,
+  IconFileDescription,IconPlus,         
+  IconEye,          
+  IconChartBar,
 } from "@tabler/icons-react";
 import { FaUsersGear } from "react-icons/fa6";
 import { useSession } from "next-auth/react";
+import Image from "next/image";
 
 import { NavDocuments } from "@/components/nav-documents";
 import { NavMain } from "@/components/nav-main";
@@ -24,13 +26,11 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { Skeleton } from "@/components/ui/skeleton";
+import logoFront from "./../public/logo.png";
+
 
 const data = {
-  user: {
-    name: "Bakite",
-    email: "bakite@gmail.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
   navMain: [
     {
       title: "Dashboard",
@@ -48,16 +48,19 @@ const data = {
           title: "Create",
           url: "/agent-monitor/create",
           roles: ["SUPER_ADMIN"],
+          icon: IconPlus,
         },
         {
           title: "View",
           url: "/agent-monitor/view",
           roles: ["ADMIN", "SUPER_ADMIN"],
+          icon: IconEye,
         },
         {
           title: "Performance",
           url: "/performance/zone",
           roles: ["SUPER_ADMIN"],
+          icon: IconChartBar,
         },
       ],
     },
@@ -68,70 +71,103 @@ const data = {
       icon: IconCamera,
       url: "#",
       roles: ["SUPER_ADMIN"],
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
     },
     {
       title: "Proposal",
       icon: IconFileDescription,
       url: "#",
       roles: ["SUPER_ADMIN"],
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
     },
     {
       title: "Prompts",
       icon: IconFileAi,
       url: "#",
       roles: ["SUPER_ADMIN"],
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
     },
   ],
   navSecondary: [],
   documents: [],
 };
 
+
+function SidebarSkeleton(props: React.ComponentProps<typeof Sidebar>) {
+  return (
+    <Sidebar collapsible="offcanvas" {...props} aria-busy="true">
+      {/* Header Skeleton */}
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <div className="flex items-center gap-3 px-2 py-3">
+                <Skeleton className="h-9 w-9 rounded-md" />
+                <Skeleton className="h-5 w-24" />
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+
+      {/* Content Skeleton */}
+      <SidebarContent>
+        <div className="px-3 py-2 space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={`main-${i}`}
+              className="flex items-center gap-3 rounded-md p-2"
+            >
+              <Skeleton className="h-5 w-5 rounded" />
+              <Skeleton className="h-4 w-40" />
+            </div>
+          ))}
+        </div>
+
+        <div className="px-3 py-4 space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={`secondary-${i}`}
+              className="flex items-center gap-3 rounded-md p-2"
+            >
+              <Skeleton className="h-5 w-5 rounded" />
+              <Skeleton className="h-4 w-28" />
+            </div>
+          ))}
+        </div>
+      </SidebarContent>
+
+      {/* Footer Skeleton */}
+      <SidebarFooter>
+        <div className="flex items-center gap-3 px-3 py-3">
+          <Skeleton className="h-9 w-9 rounded-full" />
+          <div className="flex-1 space-y-1">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-3 w-40" />
+          </div>
+        </div>
+      </SidebarFooter>
+    </Sidebar>
+  );
+}
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: session, status } = useSession();
   const userRole = session?.user?.role;
 
+  const currentUser = {
+    name: session?.user.role || "User",
+    email: session?.user?.email || "No email",
+    avatar:
+      session?.user?.image || "https://i.ibb.co.com/20vHRDWR/blank-user.png",
+  };
+
+  // Role-based filtering
   const filterByRole = <T extends { roles?: string[] }>(items: T[]): T[] => {
     if (!userRole) return [];
-    
     return items.filter((item) => {
-      // If no roles defined, show to everyone
       if (!item.roles || item.roles.length === 0) return true;
-      // Check if user's role is in the allowed roles
       return item.roles.includes(userRole);
     });
   };
 
-  // Filter main navigation items and their sub-items
   const filteredNavMain = filterByRole(data.navMain).map((item) => {
     if (item.items) {
       return {
@@ -142,64 +178,49 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return item;
   });
 
-  // Filter cloud navigation items
   const filteredNavClouds = filterByRole(data.navClouds);
 
-  // Show loading state while session is being fetched
   if (status === "loading") {
-    return (
-      <Sidebar collapsible="offcanvas" {...props}>
-        <SidebarHeader>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                className="data-[slot=sidebar-menu-button]:!p-1.5"
-              >
-                <a href="#">
-                  <IconInnerShadowTop className="!size-5" />
-                  <span className="text-base font-semibold">Bakite</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarHeader>
-        <SidebarContent>
-          <div className="flex items-center justify-center p-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          </div>
-        </SidebarContent>
-        <SidebarFooter>
-          <NavUser user={data.user} />
-        </SidebarFooter>
-      </Sidebar>
-    );
+    return <SidebarSkeleton {...props} />;
   }
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
+      {/* Header */}
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5"
-            >
+            <SidebarMenuButton asChild>
               <a href="#">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">Bakite</span>
+                <div className="flex items-center gap-3 px-2">
+                  <Image
+                    src={logoFront}
+                    alt="BakiTe Logo"
+                    width={48}
+                    height={48}
+                    priority
+                    className="object-contain rounded-md transition-transform duration-300 group-hover:scale-105 dark:brightness-110"
+                  />
+                  <span className="text-lg font-semibold tracking-wide text-gray-800 dark:text-gray-100">
+                    BakiTe
+                  </span>
+                </div>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
+
+      {/* Content */}
       <SidebarContent>
         <NavMain items={filteredNavMain} />
         <NavDocuments items={data.documents} />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
+
+      {/* Footer */}
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={currentUser} />
       </SidebarFooter>
     </Sidebar>
   );

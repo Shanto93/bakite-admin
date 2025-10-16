@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
@@ -11,7 +12,6 @@ declare module "next-auth" {
       image?: string | null;
     };
   }
-
   interface User {
     id: string;
     name?: string | null;
@@ -20,13 +20,36 @@ declare module "next-auth" {
     image?: string | null;
   }
 }
-
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
     role: "ADMIN" | "SUPER_ADMIN" | "MANAGEMENT";
   }
 }
+
+const demoUsersCredential = [
+  {
+    id: "1",
+    name: "Admin User",
+    email: "admin@gmail.com",
+    password: "admin123",
+    role: "SUPER_ADMIN" as const,
+  },
+  {
+    id: "2",
+    name: "Maruf",
+    email: "maruf@gmail.com",
+    password: "admin123",
+    role: "SUPER_ADMIN" as const,
+  },
+  {
+    id: "3",
+    name: "Shanto",
+    email: "shanto@gmail.com",
+    password: "admin123",
+    role: "SUPER_ADMIN" as const,
+  },
+];
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -43,74 +66,66 @@ export const authOptions: NextAuthOptions = {
           type: "password",
           placeholder: "********",
         },
-        role: {
-          label: "Role",
-          type: "string",
-          placeholder: "ADMIN",
-        },
+        role: { label: "Role", type: "string", placeholder: "ADMIN" }, 
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials.password || !credentials.role) {
-          console.log("Email, Password, or Role is missing");
+        if (!credentials?.email || !credentials.password) {
+          console.log("Email or Password is missing");
           return null;
         }
 
-        // Validate the role is one of the allowed values
-        const validRoles = ["ADMIN", "SUPER_ADMIN", "MANAGEMENT"];
-        if (!validRoles.includes(credentials.role)) {
-          console.log("Invalid role provided");
+        const matched = demoUsersCredential.find(
+          (u) =>
+            u.email === credentials.email && u.password === credentials.password
+        );
+        if (!matched) {
+          console.log("Invalid email/password");
           return null;
         }
 
-        if (
-          credentials.email === "admin@gmail.com" &&
-          credentials.password === "admin123"
-        ) {
-          return {
-            id: "1",
-            name: "Admin User",
-            email: credentials.email,
-            role: credentials.role as "ADMIN" | "SUPER_ADMIN" | "MANAGEMENT",
-          };
+        if (credentials.role && credentials.role !== matched.role) {
+          console.log("Role mismatch with server-side user role");
+          return null;
         }
-        return null;
+
+        return {
+          id: matched.id,
+          name: matched.name,
+          email: matched.email,
+          role: matched.role,
+        };
       },
     }),
   ],
 
   callbacks: {
     async jwt({ token, user }) {
-      // On first sign in, user object is available
+      // First sign-in: copy user -> token
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
+        token.id = user.id as string;
+        token.role = (user as any).role;
       }
       return token;
     },
-
     async session({ session, token }) {
-      // Pass token data to session
+      // Expose token -> session.user
       if (session.user) {
-        session.user.id = token.id;
-        session.user.role = token.role;
+        session.user.id = token.id as string;
+        session.user.role = token.role as any;
       }
       return session;
     },
-
     async redirect({ url, baseUrl }) {
-      // Allows relative callback URLs
       if (url.startsWith("/")) return `${baseUrl}${url}`;
-      // Allows callback URLs on the same origin
-      else if (new URL(url).origin === baseUrl) return url;
+      if (new URL(url).origin === baseUrl) return url;
       return baseUrl;
     },
   },
-
-  secret: process.env.NEXTAUTH_SECRET,
 
   pages: {
     signIn: "/login",
   },
 
   session: { strategy: "jwt" },
+  secret: process.env.NEXTAUTH_SECRET,
 };
