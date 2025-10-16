@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import {
   FiUser,
@@ -12,12 +13,15 @@ import {
   FiChevronDown,
 } from "react-icons/fi";
 import Image from "next/image";
-import type { FormData } from "@/app/types/types";
+import type { FormData as ExecFormInputs } from "@/app/types/types";
+import { useCreateExecutiveMutation } from "@/redux/api/agent/agentApi";
+import { toast } from "sonner";
 
 const Create = () => {
-  const [isLoading, setIsLoading] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string>("");
   const [previewUrl, setPreviewUrl] = useState<string>("");
+
+  const [createExecutive, { isLoading: creating }] = useCreateExecutiveMutation();
 
   const {
     register,
@@ -25,92 +29,74 @@ const Create = () => {
     formState: { errors },
     reset,
     watch,
-  } = useForm<FormData>();
+    setValue,
+  } = useForm<ExecFormInputs>();
 
   const watchedFile = watch("file");
 
-  const areaOptions = ["CTG Metro", "East - West"];
+  const divisionOptions = ["CTG METRO"];
+  const zoneOptions = ["EAST", "WEST", "SOUTH", "NORTH"];
 
-  const onSubmit: SubmitHandler<FormData> = async (data) => {
-    setIsLoading(true);
-
+  const onSubmit: SubmitHandler<ExecFormInputs> = async (data) => {
     try {
-      const formData = new FormData();
-      formData.append("name", data.name);
-      formData.append("phone", data.phone);
-      formData.append("area", data.area);
-
-      if (data.file?.[0]) {
-        formData.append("avatar", data.file[0]);
+      if (!data.file?.[0]) {
+        toast.error("Please select a profile picture");
+        return;
       }
 
-      for (const pair of formData.entries()) {
-        console.log(`${pair[0]}:`, pair[1]);
+      const avatarFile = data.file[0];
+
+      const res = await createExecutive({
+        name: data.name,
+        phone: data.phone,
+        division: data.division,
+        zone: data.zone,
+        avatar: avatarFile,
+      }).unwrap();
+
+      console.log(res);
+
+      if (!res.error) {
+        toast.success(res.message || "Executive created successfully!");
+        // Reset form and clear file states
+        reset();
+        setSelectedFileName("");
+        setPreviewUrl("");
+      } else {
+        toast.error(res.message || "Failed to create executive.");
       }
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_API}/executive/create`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      const clonedResponse = response.clone();
-
-      if (!response.ok) {
-        let errorMessage = "Submission failed";
-
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } catch {
-          try {
-            const errorText = await clonedResponse.text();
-            console.error("Server returned non-JSON error:", errorText);
-            errorMessage = `Server error: ${response.status} ${response.statusText}`;
-          } catch {
-            errorMessage = `Server error: ${response.status} ${response.statusText}`;
-          }
-        }
-
-        throw new Error(errorMessage);
-      }
-
-      await response.json();
-
-      alert("User creation successful!");
-      reset();
-      setSelectedFileName("");
-      setPreviewUrl("");
-    } catch (error) {
-      console.error("Error:", error);
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "User creation failed. Please try again.";
-      alert(errorMessage);
-    } finally {
-      setIsLoading(false);
+    } catch (err: any) {
+      console.error("Create error:", err);
+      const msg =
+        err?.data?.message ||
+        err?.message ||
+        "User creation failed. Please try again.";
+      toast.error(msg);
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     const file = watchedFile?.[0];
+    
     if (file && file.type.startsWith("image/")) {
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
       setSelectedFileName(file.name);
-      return () => URL.revokeObjectURL(url);
+    
+      return () => {
+        URL.revokeObjectURL(url);
+      };
     } else if (file) {
       setSelectedFileName(file.name);
+      setPreviewUrl("");
+    } else {
+      setSelectedFileName("");
       setPreviewUrl("");
     }
   }, [watchedFile]);
 
   const clearFile = () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    reset({ file: undefined as any });
+    setValue("file", null as any);
     setSelectedFileName("");
     setPreviewUrl("");
   };
@@ -122,9 +108,7 @@ const Create = () => {
         <div className="bg-white rounded-t-xl border-b border-gray-200 px-6 py-5 sm:px-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Create New User
-              </h1>
+              <h1 className="text-2xl font-bold text-gray-900">Create New User</h1>
               <p className="mt-1 text-sm text-gray-500">
                 Add a new executive user to the system
               </p>
@@ -139,16 +123,10 @@ const Create = () => {
 
         {/* Form Section */}
         <div className="bg-white rounded-b-xl shadow-sm">
-          <form
-            onSubmit={handleSubmit(onSubmit)}
-            className="px-6 py-8 sm:px-8 space-y-6"
-          >
-            {/* Name Field */}
+          <form onSubmit={handleSubmit(onSubmit)} className="px-6 py-8 sm:px-8 space-y-6">
+            {/* Name */}
             <div>
-              <label
-                htmlFor="name"
-                className="block text-sm font-semibold text-gray-700 mb-2"
-              >
+              <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
                 Full Name <span className="text-red-500">*</span>
               </label>
               <div className="relative">
@@ -161,10 +139,7 @@ const Create = () => {
                   placeholder="John Doe"
                   {...register("name", {
                     required: "Name is required",
-                    minLength: {
-                      value: 2,
-                      message: "Name must be at least 2 characters",
-                    },
+                    minLength: { value: 2, message: "Name must be at least 2 characters" },
                   })}
                   className={`block w-full pl-10 pr-3 py-2.5 border ${
                     errors.name
@@ -181,12 +156,9 @@ const Create = () => {
               )}
             </div>
 
-            {/* Phone Field */}
+            {/* Phone */}
             <div>
-              <label
-                htmlFor="phone"
-                className="block text-sm font-semibold text-gray-700 mb-2"
-              >
+              <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
                 Phone Number <span className="text-red-500">*</span>
               </label>
               <div className="relative">
@@ -203,14 +175,8 @@ const Create = () => {
                       value: /^(\+?88)?01[3-9]\d{8}$/,
                       message: "Please enter a valid Bangladesh phone number",
                     },
-                    minLength: {
-                      value: 11,
-                      message: "Phone number must be 11 digits",
-                    },
-                    maxLength: {
-                      value: 14,
-                      message: "Phone number must not exceed 14 digits",
-                    },
+                    minLength: { value: 11, message: "Phone number must be 11 digits" },
+                    maxLength: { value: 14, message: "Phone number must not exceed 14 digits" },
                   })}
                   className={`block w-full pl-10 pr-3 py-2.5 border ${
                     errors.phone
@@ -225,41 +191,34 @@ const Create = () => {
                   {errors.phone.message}
                 </p>
               )}
-              <p className="mt-1.5 text-xs text-gray-500">
-                Format: 01XXXXXXXXX (11 digits)
-              </p>
+              <p className="mt-1.5 text-xs text-gray-500">Format: 01XXXXXXXXX (11 digits)</p>
             </div>
 
-            {/* Area Dropdown Field */}
+            {/* Division */}
             <div>
-              <label
-                htmlFor="area"
-                className="block text-sm font-semibold text-gray-700 mb-2"
-              >
-                Area <span className="text-red-500">*</span>
+              <label htmlFor="division" className="block text-sm font-semibold text-gray-700 mb-2">
+                Division <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <FiMapPin className="h-5 w-5 text-gray-400" />
                 </div>
                 <select
-                  id="area"
-                  {...register("area", {
-                    required: "Please select an area",
-                  })}
+                  id="division"
+                  {...register("division", { required: "Please select a division" })}
                   className={`block w-full pl-10 pr-10 py-2.5 border ${
-                    errors.area
+                    errors.division
                       ? "border-red-300 focus:ring-red-500 focus:border-red-500"
                       : "border-gray-300 focus:ring-[#0aa9a2] focus:border-[#0aa9a2]"
                   } rounded-lg shadow-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none cursor-pointer`}
                   defaultValue=""
                 >
                   <option value="" disabled>
-                    Select an area
+                    Select a division
                   </option>
-                  {areaOptions.map((area) => (
-                    <option key={area} value={area}>
-                      {area}
+                  {divisionOptions.map((division) => (
+                    <option key={division} value={division}>
+                      {division}
                     </option>
                   ))}
                 </select>
@@ -267,20 +226,57 @@ const Create = () => {
                   <FiChevronDown className="h-5 w-5 text-gray-400" />
                 </div>
               </div>
-              {errors.area && (
+              {errors.division && (
                 <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
                   <span className="inline-block w-1 h-1 rounded-full bg-red-600"></span>
-                  {errors.area.message}
+                  {errors.division.message}
                 </p>
               )}
-            </div>            
+            </div>
 
-            {/* File Upload Field */}
+            {/* Zone */}
             <div>
-              <label
-                htmlFor="file"
-                className="block text-sm font-semibold text-gray-700 mb-2"
-              >
+              <label htmlFor="zone" className="block text-sm font-semibold text-gray-700 mb-2">
+                Zone <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <FiMapPin className="h-5 w-5 text-gray-400" />
+                </div>
+                <select
+                  id="zone"
+                  {...register("zone", { required: "Please select a zone" })}
+                  className={`block w-full pl-10 pr-10 py-2.5 border ${
+                    errors.zone
+                      ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                      : "border-gray-300 focus:ring-[#0aa9a2] focus:border-[#0aa9a2]"
+                  } rounded-lg shadow-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none cursor-pointer`}
+                  defaultValue=""
+                >
+                  <option value="" disabled>
+                    Select a zone
+                  </option>
+                  {zoneOptions.map((zone) => (
+                    <option key={zone} value={zone}>
+                      {zone}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <FiChevronDown className="h-5 w-5 text-gray-400" />
+                </div>
+              </div>
+              {errors.zone && (
+                <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+                  <span className="inline-block w-1 h-1 rounded-full bg-red-600"></span>
+                  {errors.zone.message}
+                </p>
+              )}
+            </div>
+
+            {/* File */}
+            <div>
+              <label htmlFor="file" className="block text-sm font-semibold text-gray-700 mb-2">
                 Profile Picture <span className="text-red-500">*</span>
               </label>
 
@@ -288,9 +284,7 @@ const Create = () => {
                 <label
                   htmlFor="file"
                   className={`flex flex-col items-center justify-center w-full h-36 border-2 ${
-                    errors.file
-                      ? "border-red-300 bg-red-50"
-                      : "border-gray-300 bg-gray-50"
+                    errors.file ? "border-red-300 bg-red-50" : "border-gray-300 bg-gray-50"
                   } border-dashed rounded-lg cursor-pointer hover:bg-gray-100 transition-colors`}
                 >
                   <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -298,20 +292,21 @@ const Create = () => {
                     <p className="mb-1 text-sm text-gray-600 font-medium">
                       Click to upload or drag and drop
                     </p>
-                    <p className="text-xs text-gray-500">
-                      PNG, JPG, PDF or DOC (Max 5MB)
-                    </p>
+                    <p className="text-xs text-gray-500">PNG or JPG (Max 5MB)</p>
                   </div>
                   <input
                     id="file"
                     type="file"
-                    accept="image/*,.pdf,.doc,.docx"
+                    accept="image/*"
                     {...register("file", {
-                      required: "File is required",
+                      required: "Profile picture is required",
                       validate: {
                         fileSize: (files) =>
-                          files[0]?.size <= 5000000 ||
-                          "File size must be less than 5MB",
+                          !files?.[0] || files[0].size <= 5_000_000 || "File size must be less than 5MB",
+                        isImage: (files) =>
+                          !files?.[0] ||
+                          files[0].type.startsWith("image/") ||
+                          "Only image files are allowed",
                       },
                     })}
                     className="hidden"
@@ -360,12 +355,12 @@ const Create = () => {
               {errors.file && (
                 <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
                   <span className="inline-block w-1 h-1 rounded-full bg-red-600"></span>
-                  {errors.file.message}
+                  {errors.file.message as string}
                 </p>
               )}
             </div>
 
-            {/* Action Buttons */}
+            {/* Actions */}
             <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
               <button
                 type="button"
@@ -373,17 +368,17 @@ const Create = () => {
                   reset();
                   clearFile();
                 }}
-                disabled={isLoading}
+                disabled={creating}
                 className="flex-1 sm:flex-none px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={creating}
                 className="flex-1 sm:flex-none px-6 py-2.5 bg-[#0aa9a2] text-white font-medium rounded-lg hover:bg-[#099791] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0aa9a2] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
               >
-                {isLoading ? (
+                {creating ? (
                   <span className="flex items-center justify-center gap-2">
                     <svg
                       className="animate-spin h-5 w-5"

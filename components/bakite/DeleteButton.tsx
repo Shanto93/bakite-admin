@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { FiTrash2 } from "react-icons/fi";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useDeleteExecutiveMutation } from "@/redux/api/agent/agentApi";
 
 interface DeleteButtonProps {
   executiveId: string;
@@ -18,44 +20,51 @@ export const DeleteButton: React.FC<DeleteButtonProps> = ({
   // variant = "desktop",
   onDeleted,
 }) => {
-  const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
+
+  const [deleteExecutive, { isLoading }] = useDeleteExecutiveMutation();
+
+  const mountedRef = React.useRef(true);
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const confirmDelete = () => {
     toast.warning(`Delete ${executiveName}?`, {
+      duration: 5000,
       action: {
         label: "Confirm",
         onClick: performDelete,
       },
-      duration: 5000,
     });
   };
 
   const performDelete = async () => {
-    setIsDeleting(true);
-    try {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_API;
-      if (!baseUrl) throw new Error("API base URL not configured");
-
-      const response = await fetch(`${baseUrl}/executive/delete/${executiveId}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Failed (status: ${response.status})`);
-      }
-
-      toast.success(`${executiveName} deleted successfully!`);
-
-      onDeleted?.(executiveId);
-      router.refresh();
-    } catch (err) {
-      console.error("Delete error:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to delete. Try again.");
-    } finally {
-      setIsDeleting(false);
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast.error("You're offline. Please check your connection.");
+      return;
     }
+
+    const p = deleteExecutive({ id: executiveId }).unwrap();
+
+    toast.promise(p, {
+      loading: "Deleting...",
+      success: (res: any) => {
+        if (res?.error) throw new Error(res.message || "Failed to delete.");
+        onDeleted?.(executiveId);
+        router.refresh();
+        return `${executiveName} deleted successfully!`;
+      },
+      error: (err: any) =>
+        err?.data?.message || err?.message || "Failed to delete. Try again.",
+    });
+
+    try {
+      await p;
+    } catch {}
   };
 
   const buttonClasses =
@@ -64,17 +73,18 @@ export const DeleteButton: React.FC<DeleteButtonProps> = ({
   return (
     <button
       onClick={confirmDelete}
-      disabled={isDeleting}
+      disabled={isLoading}
       className={buttonClasses}
       aria-label={`Delete ${executiveName}`}
     >
-      {isDeleting ? (
+      {isLoading ? (
         <>
           <svg
             className="animate-spin h-4 w-4"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
+            aria-hidden="true"
           >
             <circle
               className="opacity-25"
@@ -83,15 +93,12 @@ export const DeleteButton: React.FC<DeleteButtonProps> = ({
               r="10"
               stroke="currentColor"
               strokeWidth="4"
-            ></circle>
+            />
             <path
               className="opacity-75"
               fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 
-                 5.373 0 12h4zm2 5.291A7.962 7.962 
-                 0 014 12H0c0 3.042 1.135 5.824 
-                 3 7.938l3-2.647z"
-            ></path>
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
           </svg>
           <span className="text-sm">Deleting...</span>
         </>

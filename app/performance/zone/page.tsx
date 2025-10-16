@@ -4,151 +4,262 @@
 import { useEffect, useMemo, useState } from "react";
 import SelectDropdown, { type Option } from "@/components/SelectDropdown";
 import { UserTable } from "@/components/UserTable";
-import { getAgentsByArea, getOnboardShops } from "@/lib/api";
+import {
+  useGetExecutivesByAreaQuery,
+  useGetExecutiveOnBoardedShopsQuery,
+} from "@/redux/api/agent/agentApi";
+import type { IOnBoarded, User } from "@/app/types/types";
 
-type ShopUser = {
-  shopId: string;
-  phone: string;
-  name: string;
-  picture: string;
-  shopName: string;
-  shopAddress: string;
-  shopPicture: string;
-  status: "Inactive" | "Active";
-  lastLoginAt: string;
-  lastConsumerAddedAt: string;
-};
+const divisionOptions: Option[] = [{ label: "CTG METRO", value: "CTG METRO" }];
 
 const zoneOptions: Option[] = [
-  { label: "CTG Metro", value: "CTG Metro" },
-  { label: "East - West", value: "East - West" },
-];
-
-const daysOptions: Option[] = [
-  { label: "Last 7 Days", value: "7" },
-  { label: "Last 30 Days", value: "30" },
-  { label: "All Time", value: "" },
+  { label: "East", value: "EAST" },
+  { label: "West", value: "WEST" },
+  { label: "South", value: "SOUTH" },
+  { label: "North", value: "NORTH" },
 ];
 
 export default function PerformanceZone() {
-  const [area, setArea] = useState("");
-  const [days, setDays] = useState("");
+  const [division, setDivision] = useState("");
+  const [zone, setZone] = useState("");
   const [agentPhone, setAgentPhone] = useState("");
-  const [agentOptions, setAgentOptions] = useState<Option[]>([]);
-  const [usersRaw, setUsersRaw] = useState<ShopUser[]>([]);
-  const [loadingAgents, setLoadingAgents] = useState(false);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setAgentPhone("");
-    setUsersRaw([]);
-  }, [area, days]);
+  }, [division, zone]);
 
-  useEffect(() => {
-    if (!area || days === null) return;
-    if (!area || days === "") {
-      if (!area) return;
-    }
+  const {
+    data: agents = [],
+    isFetching: loadingAgents,
+    isError: isAgentsError,
+    error: agentsErrorObj,
+    refetch: refetchAgents,
+  } = useGetExecutivesByAreaQuery(
+    {
+      division: division as "CTG METRO",
+      zone: zone as "EAST" | "WEST" | "SOUTH" | "NORTH",
+    },
+    { skip: !division || !zone }
+  );
 
-    (async () => {
-      try {
-        setLoadingAgents(true);
-        setError(null);
-        const res = await getAgentsByArea(area);
-        const opts =
-          res?.data?.map((a) => ({
-            label: a.name,
-            value: a.phone,
-          })) ?? [];
-        setAgentOptions(opts);
-      } catch (e: any) {
-        setError(e?.message ?? "Failed to load agents");
-        setAgentOptions([]);
-      } finally {
-        setLoadingAgents(false);
-      }
-    })();
-  }, [area, days]);
+  const agentOptions: Option[] = useMemo(
+    () =>
+      (agents ?? []).map((a) => ({
+        label: `${a.name} (${a.phone})`,
+        value: a.phone,
+      })),
+    [agents]
+  );
 
-  useEffect(() => {
-    if (!agentPhone) return;
+  const {
+    data: onboardedRaw = [],
+    isFetching: loadingUsers,
+    isError: isUsersError,
+    error: usersErrorObj,
+    refetch: refetchUsers,
+  } = useGetExecutiveOnBoardedShopsQuery(
+    { phone: agentPhone },
+    { skip: !agentPhone }
+  );
 
-    (async () => {
-      try {
-        setLoadingUsers(true);
-        setError(null);
-        const res = await getOnboardShops(agentPhone);
-        const data = Array.isArray(res.data) ? res.data : [res.data];
-        setUsersRaw(data.filter(Boolean) as ShopUser[]);
-      } catch (e: any) {
-        setError(e?.message ?? "Failed to load users");
-        setUsersRaw([]);
-      } finally {
-        setLoadingUsers(false);
-      }
-    })();
-  }, [agentPhone]);
+  const onboardedArray: IOnBoarded[] = useMemo(() => {
+    if (Array.isArray(onboardedRaw)) return onboardedRaw as IOnBoarded[];
+    return onboardedRaw ? [onboardedRaw as IOnBoarded] : [];
+  }, [onboardedRaw]);
 
-  const users = useMemo(() => {
-    if (!days) return usersRaw;
-    const n = Number(days);
-    if (!n) return usersRaw;
-    const from = Date.now() - n * 24 * 60 * 60 * 1000;
-    return usersRaw.filter((u) => new Date(u.lastLoginAt).getTime() >= from);
-  }, [usersRaw, days]);
+  const users: User[] = useMemo(() => {
+    return onboardedArray.map((u) => ({
+      shopId: u.shopId,
+      phone: u.phone,
+      name: u.name,
+      picture: u.picture,
+      shopName: u.shopName,
+      shopAddress: u.shopAddress,
+      shopPicture: u.shopPicture,
+      status:
+        (typeof u.status === "string" ? u.status : String(u.status)) as
+          | "Inactive"
+          | "Active",
+      lastLoginAt:
+        typeof u.lastLoginAt === "string"
+          ? u.lastLoginAt
+          : new Date(u.lastLoginAt).toISOString(),
+      lastConsumerAddedAt:
+        typeof u.lastConsumerAddedAt === "string"
+          ? u.lastConsumerAddedAt
+          : new Date(u.lastConsumerAddedAt).toISOString(),
+    }));
+  }, [onboardedArray]);
+
+  const totalUsers = users.length;
+  const showEmptyBanner = agentPhone && !loadingUsers && totalUsers === 0;
+
+  const error =
+    (isAgentsError &&
+      ((agentsErrorObj as any)?.data?.message ||
+        (agentsErrorObj as any)?.message ||
+        "Failed to load executives")) ||
+    (isUsersError &&
+      ((usersErrorObj as any)?.data?.message ||
+        (usersErrorObj as any)?.message ||
+        "Failed to load shops")) ||
+    null;
+
+  const hasFilters = !!division || !!zone || !!agentPhone;
+
+  const resetFilters = () => {
+    setDivision("");
+    setZone("");
+    setAgentPhone("");
+  };
 
   return (
-    <div className="p-8 w-full">
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">
-          Performance • Zone
-        </h2>
+    <div className="w-full p-4 sm:p-6 lg:p-8">
+      {/* Header / Toolbar */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 sm:p-6 mb-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Performance • Zone</h2>
+            <p className="text-sm text-gray-500">
+              Select division and zone to load executives, then pick an executive to view onboarded shops.
+            </p>
+          </div>
 
-        <div className="grid md:grid-cols-3 sm:grid-cols-1 gap-6">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full bg-[#0aa9a2]/10 px-3 py-1 text-sm font-medium text-[#0aa9a2]">
+              {loadingUsers ? "Loading…" : `${totalUsers} ${totalUsers === 1 ? "User" : "Users"}`}
+            </span>
+
+            <button
+              onClick={() => {
+                if (division && zone) refetchAgents();
+                if (agentPhone) refetchUsers();
+              }}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition"
+            >
+              <svg
+                className={`h-4 w-4 ${loadingUsers || loadingAgents ? "animate-spin" : ""}`}
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <path
+                  d="M4 4v6h6M20 20v-6h-6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M20 8a8 8 0 10-7.5 12"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Refresh
+            </button>
+
+            <button
+              onClick={resetFilters}
+              disabled={!hasFilters}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          {/* Division */}
           <SelectDropdown
-            label="ZONE"
+            label="Division"
+            options={divisionOptions}
+            value={division}
+            onChange={setDivision}
+            placeholder="Select division"
+            helperText="Pick division first."
+          />
+
+          {/* Zone */}
+          <SelectDropdown
+            label="Zone"
             options={zoneOptions}
-            value={area}
-            onChange={setArea}
+            value={zone}
+            onChange={setZone}
+            placeholder={division ? "Select zone" : "Pick division first"}
+            disabled={!division}
+            helperText={division ? "Now choose zone." : "Division is required."}
           />
 
+          {/* Executive (loads after both division & zone) */}
           <SelectDropdown
-            label="Time Range"
-            options={daysOptions}
-            value={days}
-            onChange={setDays}
-          />
-
-          <SelectDropdown
-            label="AGENT"
+            label="Executive"
             options={agentOptions}
             value={agentPhone}
             onChange={setAgentPhone}
-            disabled={loadingAgents || !area}
-            placeholder={loadingAgents ? "Loading…" : "Select"}
-            className="w-64"
+            disabled={loadingAgents || !division || !zone}
+            placeholder={
+              !division || !zone
+                ? "Pick division & zone first"
+                : loadingAgents
+                ? "Loading…"
+                : agents.length
+                ? "Select executive"
+                : "No executives found"
+            }
+            loading={loadingAgents}
+            helperText={
+              division && zone
+                ? "Choose an executive for the selected area."
+                : "Division & zone are required."
+            }
+            className="w-full"
           />
         </div>
 
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {showEmptyBanner && (
+          <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            No onboarded shops found
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )}
       </div>
 
+      {/* Results */}
       {loadingUsers ? (
-        <div className="mt-6 text-sm text-gray-600">Loading users…</div>
+        <ListSkeleton />
       ) : agentPhone ? (
-        users.length > 0 ? (
+        totalUsers > 0 ? (
           <UserTable data={users} />
         ) : (
           <div className="mt-6 bg-white rounded-xl border border-gray-200 shadow-sm p-6 text-sm text-gray-500">
-            No users found.
+            No users found for the selected executive.
           </div>
         )
       ) : (
-        <div className="mt-2 text-sm text-gray-500">
-          Select an agent to view users.
-        </div>
+        <div className="mt-2 text-sm text-gray-500">Select an executive to view users.</div>
       )}
+    </div>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <div className="mt-6 space-y-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="bg-white border border-gray-200 rounded-xl p-4 animate-pulse">
+          <div className="h-4 w-1/3 bg-gray-100 rounded mb-2" />
+          <div className="h-3 w-2/3 bg-gray-100 rounded mb-2" />
+          <div className="h-3 w-1/2 bg-gray-100 rounded" />
+        </div>
+      ))}
     </div>
   );
 }

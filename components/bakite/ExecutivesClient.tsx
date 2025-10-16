@@ -15,45 +15,33 @@ type Props = {
 function normalizeImgSrc(raw?: string): string | null {
   const val = (raw || "").trim();
   if (!val) return null;
-
-  if (/^https?:\/\//i.test(val)) return val; 
+  if (/^https?:\/\//i.test(val)) return val;
   if (val.startsWith("/public/")) return val.replace(/^\/?public\//, "/");
   if (val.startsWith("public/")) return `/${val.replace(/^public\//, "")}`;
-  if (val.startsWith("/")) return val; 
-  return `/${val}`; 
+  if (val.startsWith("/")) return val;
+  return `/${val}`;
 }
 
 export default function ExecutivesClient({ initialData }: Props) {
   const router = useRouter();
   const [rows, setRows] = React.useState<Executive[]>(initialData);
   const [editing, setEditing] = React.useState<Executive | null>(null);
-
-  // per-exec version to force <Image> refresh without full reload
   const [imgVersion, setImgVersion] = React.useState<Record<string, number>>({});
+
+  React.useEffect(() => {
+    setRows(initialData);
+  }, [initialData]);
 
   const onSaved = (updated: Executive) => {
     setRows(prev =>
       prev.map(r => {
         if (r._id !== updated._id) return r;
-
         const incomingAvatar = (updated.avatar || "").trim();
         const safeAvatar = incomingAvatar ? incomingAvatar : r.avatar;
-
-        return {
-          ...r,
-          ...updated,
-          avatar: safeAvatar,
-          name: updated.name ?? r.name,
-          phone: updated.phone ?? r.phone,
-        };
+        return { ...r, ...updated, avatar: safeAvatar, name: updated.name ?? r.name, phone: updated.phone ?? r.phone };
       })
     );
-
-    
-    setImgVersion(prev => ({
-      ...prev,
-      [updated._id]: (prev[updated._id] || 0) + 1,
-    }));
+    setImgVersion(prev => ({ ...prev, [updated._id]: (prev[updated._id] || 0) + 1 }));
     router.refresh();
   };
 
@@ -74,7 +62,7 @@ export default function ExecutivesClient({ initialData }: Props) {
             <tr>
               <Th>User</Th>
               <Th>Phone</Th>
-              <Th>Area</Th>
+              <Th>Location</Th>
               <Th align="right">Actions</Th>
             </tr>
           </thead>
@@ -108,10 +96,9 @@ export default function ExecutivesClient({ initialData }: Props) {
                           </div>
                         )}
                       </div>
-
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">{executive.name}</div>
-                        <div className="text-sm text-gray-500">ID: {executive._id.slice(-8)}</div>
+                        <div className="text-sm text-gray-500">ID: {executive._id}</div>
                       </div>
                     </div>
                   </td>
@@ -122,7 +109,7 @@ export default function ExecutivesClient({ initialData }: Props) {
 
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {executive.area}
+                      {executive.location}
                     </span>
                   </td>
 
@@ -190,11 +177,11 @@ export default function ExecutivesClient({ initialData }: Props) {
                       <p className="text-sm text-gray-500 mt-0.5">{executive.phone}</p>
                     </div>
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 flex-shrink-0">
-                      {executive.area}
+                      {executive.location}
                     </span>
                   </div>
 
-                  <p className="text-xs text-gray-400 mt-1">ID: {executive._id.slice(-8)}</p>
+                  <p className="text-xs text-gray-400 mt-1">ID: {executive._id}</p>
 
                   <div className="flex items-center gap-2 mt-3">
                     <button
